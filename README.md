@@ -20,6 +20,8 @@ Minimal React + Vite TypeScript UI to inspect Redis key/value data from an API. 
 - Query params:
   - `limit`: number of items to return (default 100)
   - `skip`: number of items to skip for pagination (default 0)
+  - `filter`: optional key match pattern (e.g., `arq:*`)
+  - Note: The UI does not perform client-side filtering; all filtering happens on the backend via `filter`.
 - Response (required shape):
   - `{ total_count?: number, values: [{ key, type, value }] }`
 - Item types:

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { RedisTable, type RedisItem } from './components/RedisTable'
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { RedisTable, type RedisItem } from './components/RedisTable';
 
 // API shape (strict): { total_count?: number, values: Array<{ key, type, value }> }
 type ApiResponse = { total_count?: number; values: any[] }
@@ -27,6 +27,7 @@ export function App() {
       const url = new URL(endpoint, window.location.origin)
       url.searchParams.set('limit', String(limit))
       url.searchParams.set('skip', String(skip))
+      if (filter.trim()) url.searchParams.set('filter', filter.trim())
       const res = await fetch(url.toString(), { headers: { Accept: 'application/json' } })
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
       const body = (await res.json()) as ApiResponse
@@ -52,7 +53,7 @@ export function App() {
       setLoading(false)
       loadingRef.current = false
     }
-  }, [endpoint, limit, skip])
+  }, [endpoint, limit, skip, filter])
 
   useEffect(() => {
     void load()
@@ -64,19 +65,6 @@ export function App() {
     const id = setInterval(() => void load(), intervalMs)
     return () => clearInterval(id)
   }, [intervalMs, load])
-
-  const filtered = useMemo(() => {
-    if (!items) return null
-    if (!filter.trim()) return items
-    const q = filter.toLowerCase()
-    return items.filter((it) => {
-      const keyHit = it.key.toLowerCase().includes(q)
-      const typeHit = it.type.toLowerCase().includes(q)
-      const valueStr = it.type === 'string' ? it.value : JSON.stringify(it.value)
-      const valueHit = valueStr.toLowerCase().includes(q)
-      return keyHit || typeHit || valueHit
-    })
-  }, [items, filter])
 
   return (
     <div className="container">
@@ -104,7 +92,7 @@ export function App() {
           className="search"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter by key or value…"
+          placeholder="Filter by key (sent to API; supports glob like arq:*)"
         />
         <label>
           Auto-refresh:
@@ -147,8 +135,8 @@ export function App() {
         </div>
       </section>
 
-      {filtered ? (
-        <RedisTable items={filtered} />
+      {items ? (
+        <RedisTable items={items} />
       ) : (
         <p className="empty">No data loaded.</p>
       )}
