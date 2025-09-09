@@ -7,46 +7,44 @@ Minimal React + Vite TypeScript UI to inspect Redis key/value data from an API. 
 - Copy value or `key=value`
 - Auto‑refresh: Off, 1s, 3s, 5s, 10s
 - Endpoint input; falls back to `public/sample-data.json`
+- Pagination: `limit`, `skip`, Prev/Next, total and page counts
 
 ## Quick Start
 - `npm install`
 - `npm run dev` (http://localhost:5173)
 - `npm run build` / `npm run preview`
 
-## API
-- Default endpoint: `/api/redis` (change in `src/App.tsx` or via input)
-- Optional dev proxy: set `server.proxy` in `vite.config.ts`
+## API Spec
+- Method: `GET`
+- Endpoint: configurable in the UI (default `/api/redis`)
+- Query params:
+  - `limit`: number of items to return (default 100)
+  - `skip`: number of items to skip for pagination (default 0)
+- Response (required shape):
+  - `{ total_count?: number, values: [{ key, type, value }] }`
+- Item types:
+  - `string`: `value: string`
+  - `list`: `value: string[]`
+  - `set`: `value: string[]`
+  - `hash`: `value: Record<string, string>`
+  - `zset`: `value: { member: string, score: number }[]` (also accepts `[member, score][]`)
+- Total count (optional):
+  - Prefer `X-Total-Count` response header
+  - Or include `total_count` (or `total`/`count`) in the JSON body
+- Content-Type: `application/json`
 
-## Structure
-- `src/App.tsx`: fetching, filters, refresh
-- `src/components/RedisTable.tsx`: table + actions
-- `public/sample-data.json`: sample data
-
-## Backend API
-- Expected: `GET /api/redis` → JSON object mapping `string -> string`.
-- Example (Node/Express + ioredis):
-  ```js
-  import express from 'express'
-  import Redis from 'ioredis'
-  const app = express(); const redis = new Redis(process.env.REDIS_URL)
-  app.get('/api/redis', async (req, res) => {
-    const out = {}
-    for await (const key of redis.scanIterator({ match: '*' })) {
-      const v = await redis.get(key)
-      if (v != null) out[key] = v
-    }
-    res.json(out)
-  })
-  app.listen(3000)
+### Example cURL:
+  ```bash
+  curl -s "http://localhost:8002/redis/get/all?limit=100&skip=0" -H "accept: application/json"
   ```
-- Dev proxy (Vite): in `vite.config.ts` add `server.proxy = { '/api': 'http://localhost:3000' }` to avoid CORS.
 
-## Example Payload
-```
+### Example response
+```json
 {
-  "dispatcher:concurrency:connector:07ef5707-0fcb-4002-a8e0-cb39fed4b366": "0",
-  "arq:queue:health-check": "Sep-09 04:19:13 j_complete=0 j_failed=0 j_retried=0 j_ongoing=0 queued=0",
-  "dispatcher:redispatch_lock": "95a5d25a8d3611f0a6b536807b5645e0",
-  "arq:job_monitoring_agent:active": "1"
+  "total_count": 4,
+  "values": [
+    { "key": "arq:job_monitoring_agent:active", "type": "string", "value": "1" },
+    { "key": "dispatcher:concurrency:connector:07ef...b366", "type": "string", "value": "0" }
+  ]
 }
 ```

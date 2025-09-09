@@ -1,18 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RedisTable, type RedisItem } from './components/RedisTable'
 
-// Legacy shape: Record<string, string>
-type LegacyKV = Record<string, string>
-
-// New flexible API shapes:
-// - Array<RedisItem>
-// - Wrapped: { values: RedisItem[], total_count?: number }
-// - Record<string, { type: string; value: any }> (object map form)
-type ApiResponse =
-  | LegacyKV
-  | RedisItem[]
-  | { values: any[]; [k: string]: any }
-  | Record<string, { type: RedisItem['type']; value: any }>
+// API shape (strict): { total_count?: number, values: Array<{ key, type, value }> }
+type ApiResponse = { total_count?: number; values: any[] }
 
 const DEFAULT_ENDPOINT = '/api/redis' // you can change or proxy in vite.config.ts
 
@@ -44,14 +34,7 @@ export function App() {
       setItems(normalized)
       // Try total from header first, then body fields, else null
       const hdrTotal = res.headers.get('x-total-count')
-      let totalFromBody: number | null = null
-      if (body && typeof body === 'object' && !Array.isArray(body)) {
-        const anyBody = body as any
-        if (typeof anyBody.total_count === 'number') totalFromBody = anyBody.total_count
-        else if (typeof anyBody.total === 'number') totalFromBody = anyBody.total
-        else if (typeof anyBody.count === 'number') totalFromBody = anyBody.count
-        else if (anyBody.data && typeof anyBody.data.total === 'number') totalFromBody = anyBody.data.total
-      }
+      const totalFromBody = typeof body.total_count === 'number' ? body.total_count : null
       setTotal(hdrTotal != null ? Number(hdrTotal) : totalFromBody)
     } catch (e: any) {
       // Fallback to sample when API isn't ready
@@ -60,7 +43,7 @@ export function App() {
         const body = (await res.json()) as ApiResponse
         const normalized = normalize(body)
         setItems(normalized)
-        setTotal(Array.isArray(normalized) ? normalized.length : null)
+        setTotal(typeof body.total_count === 'number' ? body.total_count : normalized.length)
         setError(`Using sample data (API not available${e?.message ? `: ${e.message}` : ''})`)
       } catch (e2: any) {
         setError(e2?.message ?? 'Unknown error')
@@ -174,70 +157,28 @@ export function App() {
 }
 
 function normalize(body: ApiResponse): RedisItem[] {
-  // If array of items already – also normalize zset pairs if needed
-  const normalizeArray = (arr: any[]): RedisItem[] =>
-    arr.map((it): RedisItem => {
-      if (!it || typeof it !== 'object' || !('type' in it) || !('key' in it)) {
-        return { key: String((it as any)?.key ?? ''), type: 'string', value: String((it as any)?.value ?? '') }
-      }
-      if (it.type === 'zset') {
-        const raw = Array.isArray(it.value) ? it.value : []
-        const val = raw.map((e: any) =>
-          Array.isArray(e) && e.length >= 2
-            ? { member: String(e[0]), score: Number(e[1]) }
-            : { member: String(e?.member ?? ''), score: Number(e?.score ?? 0) }
-        )
-        return { key: String(it.key), type: 'zset', value: val }
-      }
-      if (it.type === 'list' || it.type === 'set') {
-        const arr2 = Array.isArray(it.value) ? it.value.map(String) : []
-        return { key: String(it.key), type: it.type, value: arr2 } as RedisItem
-      }
-      if (it.type === 'hash') {
-        const obj = it.value && typeof it.value === 'object' ? it.value : {}
-        return { key: String(it.key), type: 'hash', value: Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, String(v)])) }
-      }
-      return { key: String(it.key), type: 'string', value: String(it.value ?? '') }
-    })
-
-  if (Array.isArray(body)) {
-    return normalizeArray(body as any[])
-  }
-  // Wrapped: { values: [...] }
-  if (body && typeof body === 'object' && Array.isArray((body as any).values)) {
-    return normalizeArray((body as any).values)
-  }
-  // If legacy map of string -> string
-  const isLegacy = typeof body === 'object' && body != null && Object.values(body).every((v) => typeof v === 'string')
-  if (isLegacy) {
-    return Object.entries(body as LegacyKV).map(([key, value]) => ({ key, type: 'string', value }))
-  }
-  // Map form: key -> { type, value }
-  const obj = body as Record<string, { type: RedisItem['type']; value: any }>
-  return Object.entries(obj).map(([key, v]) => {
-    if (!v || typeof v !== 'object' || !('type' in v)) {
-      // Fallback to string stringification
-      return { key, type: 'string', value: String((v as any) ?? '') } as RedisItem
+  const list = Array.isArray(body?.values) ? body.values : []
+  return list.map((it: any): RedisItem => {
+    if (!it || typeof it !== 'object' || !('type' in it) || !('key' in it)) {
+      return { key: String((it as any)?.key ?? ''), type: 'string', value: String((it as any)?.value ?? '') }
     }
-    switch (v.type) {
-      case 'string':
-        return { key, type: 'string', value: String(v.value ?? '') }
-      case 'list':
-        return { key, type: 'list', value: Array.isArray(v.value) ? v.value.map(String) : [] }
-      case 'set':
-        return { key, type: 'set', value: Array.isArray(v.value) ? v.value.map(String) : [] }
-      case 'hash':
-        return { key, type: 'hash', value: (v.value && typeof v.value === 'object') ? Object.fromEntries(Object.entries(v.value).map(([k, val]) => [k, String(val)])) : {} }
-      case 'zset':
-        return {
-          key,
-          type: 'zset',
-          value: Array.isArray(v.value)
-            ? v.value.map((e: any) => ({ member: String(e.member), score: Number(e.score) }))
-            : []
-        }
-      default:
-        return { key, type: 'string', value: JSON.stringify(v.value) } as RedisItem
+    if (it.type === 'zset') {
+      const raw = Array.isArray(it.value) ? it.value : []
+      const val = raw.map((e: any) =>
+        Array.isArray(e) && e.length >= 2
+          ? { member: String(e[0]), score: Number(e[1]) }
+          : { member: String(e?.member ?? ''), score: Number(e?.score ?? 0) }
+      )
+      return { key: String(it.key), type: 'zset', value: val }
     }
+    if (it.type === 'list' || it.type === 'set') {
+      const arr2 = Array.isArray(it.value) ? it.value.map(String) : []
+      return { key: String(it.key), type: it.type, value: arr2 } as RedisItem
+    }
+    if (it.type === 'hash') {
+      const obj = it.value && typeof it.value === 'object' ? it.value : {}
+      return { key: String(it.key), type: 'hash', value: Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, String(v)])) }
+    }
+    return { key: String(it.key), type: 'string', value: String(it.value ?? '') }
   })
 }
