@@ -10,8 +10,10 @@ export function App() {
   const [items, setItems] = useState<RedisItem[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [endpoint, setEndpoint] = useState(DEFAULT_ENDPOINT)
-  const [filter, setFilter] = useState('')
+  const [endpointInput, setEndpointInput] = useState(DEFAULT_ENDPOINT)
+  const [filterInput, setFilterInput] = useState('')
+  const debouncedEndpoint = useDebounced(endpointInput, 300)
+  const debouncedFilter = useDebounced(filterInput, 300)
   const [intervalMs, setIntervalMs] = useState<number>(0) // 0 = off
   const [limit, setLimit] = useState<number>(100)
   const [skip, setSkip] = useState<number>(0)
@@ -24,10 +26,10 @@ export function App() {
     setLoading(true)
     setError(null)
     try {
-      const url = new URL(endpoint, window.location.origin)
+      const url = new URL(debouncedEndpoint, window.location.origin)
       url.searchParams.set('limit', String(limit))
       url.searchParams.set('skip', String(skip))
-      if (filter.trim()) url.searchParams.set('filter', filter.trim())
+      if (debouncedFilter.trim()) url.searchParams.set('filter', debouncedFilter.trim())
       const res = await fetch(url.toString(), { headers: { Accept: 'application/json' } })
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
       const body = (await res.json()) as ApiResponse
@@ -53,7 +55,7 @@ export function App() {
       setLoading(false)
       loadingRef.current = false
     }
-  }, [endpoint, limit, skip, filter])
+  }, [debouncedEndpoint, limit, skip, debouncedFilter])
 
   useEffect(() => {
     void load()
@@ -72,8 +74,8 @@ export function App() {
         <h1>Redis Values Viewer</h1>
         <div className="actions">
           <input
-            value={endpoint}
-            onChange={(e) => setEndpoint(e.target.value)}
+            value={endpointInput}
+            onChange={(e) => setEndpointInput(e.target.value)}
             placeholder="API endpoint, e.g. /api/redis"
             className="endpoint"
           />
@@ -90,8 +92,8 @@ export function App() {
       <section className="toolbar">
         <input
           className="search"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          value={filterInput}
+          onChange={(e) => setFilterInput(e.target.value)}
           placeholder="Filter by key (sent to API; supports glob like arq:*)"
         />
         <label>
@@ -169,4 +171,13 @@ function normalize(body: ApiResponse): RedisItem[] {
     }
     return { key: String(it.key), type: 'string', value: String(it.value ?? '') }
   })
+}
+
+function useDebounced<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(id)
+  }, [value, delay])
+  return debounced
 }
