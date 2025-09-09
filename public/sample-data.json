@@ -1,7 +1,10 @@
-{
-  "dispatcher:concurrency:connector:07ef5707-0fcb-4002-a8e0-cb39fed4b366": "0",
-  "arq:queue:health-check": "Sep-09 04:19:13 j_complete=0 j_failed=0 j_retried=0 j_ongoing=0 queued=0",
-  "dispatcher:redispatch_lock": "95a5d25a8d3611f0a6b536807b5645e0",
-  "arq:job_monitoring_agent:active": "1"
-}
-
+[
+  { "key": "dispatcher:concurrency:connector:07ef5707-0fcb-4002-a8e0-cb39fed4b366", "type": "string", "value": "0" },
+  { "key": "arq:queue:health-check", "type": "string", "value": "Sep-09 04:19:13 j_complete=0 j_failed=0 j_retried=0 j_ongoing=0 queued=0" },
+  { "key": "dispatcher:redispatch_lock", "type": "string", "value": "95a5d25a8d3611f0a6b536807b5645e0" },
+  { "key": "arq:job_monitoring_agent:active", "type": "string", "value": "1" },
+  { "key": "app:list:recent-users", "type": "list", "value": ["u1","u2","u3"] },
+  { "key": "app:set:flags", "type": "set", "value": ["alpha","beta","canary"] },
+  { "key": "app:hash:user:42", "type": "hash", "value": { "id": "42", "name": "Ada", "role": "admin" } },
+  { "key": "app:zset:leaderboard", "type": "zset", "value": [ { "member": "alice", "score": 120 }, { "member": "bob", "score": 95 } ] }
+]
