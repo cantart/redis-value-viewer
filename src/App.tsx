@@ -95,7 +95,7 @@ export function App() {
           className="search"
           value={filterInput}
           onChange={(e) => setFilterInput(e.target.value)}
-          placeholder="Filter by key (sent to API; supports glob like arq:*)"
+          placeholder="Filter (glob e.g. arq:*)"
         />
         <label>
           Auto-refresh:
