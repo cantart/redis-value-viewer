@@ -15,7 +15,8 @@ export function App() {
   const debouncedEndpoint = useDebounced(endpointInput, 300)
   const debouncedFilter = useDebounced(filterInput, 300)
   const [intervalMs, setIntervalMs] = useState<number>(0) // 0 = off
-  const [limit, setLimit] = useState<number>(100)
+  const DEFAULT_LIMIT = 100
+  const [limit, setLimit] = useState<number>(DEFAULT_LIMIT)
   const [skip, setSkip] = useState<number>(0)
   const [total, setTotal] = useState<number | null>(null)
   const loadingRef = useRef(false)
@@ -122,6 +123,13 @@ export function App() {
           />
         </label>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 8 }}>
+          <button
+            onClick={() => setSkip(0)}
+            disabled={loading || skip <= 0}
+            title="Go to first page"
+          >
+            ◀◀ First
+          </button>
           <button
             onClick={() => setSkip((s) => Math.max(0, s - limit))}
             disabled={loading || skip <= 0}
